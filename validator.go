@@ -500,8 +500,8 @@ func setFieldValue(field reflect.Value, value string) error {
 
 // WithBodyValidation wraps a handler with automatic JSON body validation
 // The validated body will be stored in the context with key ContextKeyValidatedBody
-func WithBodyValidation[T any](validator *Validator[T]) func(HandlerFunc) HandlerFunc {
-	return func(handler HandlerFunc) HandlerFunc {
+func WithBodyValidation[T any](validator *Validator[T]) func(Handler) Handler {
+	return func(handler Handler) Handler {
 		return func(ctx *Context) (any, int, error) {
 			// Create a new instance of the body struct
 			body := validator.Factory()
@@ -528,8 +528,8 @@ func WithBodyValidation[T any](validator *Validator[T]) func(HandlerFunc) Handle
 
 // WithQueryValidation wraps a handler with automatic query parameter validation
 // The validated query params will be stored in the context with key ContextKeyValidatedQuery
-func WithQueryValidation[T any](validator *Validator[T]) func(HandlerFunc) HandlerFunc {
-	return func(handler HandlerFunc) HandlerFunc {
+func WithQueryValidation[T any](validator *Validator[T]) func(Handler) Handler {
+	return func(handler Handler) Handler {
 		return func(ctx *Context) (any, int, error) {
 			// Create a new instance of the query struct
 			query := validator.Factory()
@@ -602,8 +602,8 @@ func populatePathParams(pathParams map[string]string, target any) error {
 //	}
 //	userParamsValidator := api.NewValidator(&UserParams{})
 //	WithPathParams(userParamsValidator)
-func WithPathParams[T any](validator *Validator[T]) func(HandlerFunc) HandlerFunc {
-	return func(handler HandlerFunc) HandlerFunc {
+func WithPathParams[T any](validator *Validator[T]) func(Handler) Handler {
+	return func(handler Handler) Handler {
 		return func(ctx *Context) (any, int, error) {
 			// Create a new instance of the params struct
 			params := validator.Factory()
@@ -679,7 +679,7 @@ func WithTyped[P any, B any, Q any](
 	params *Validator[P],
 	body *Validator[B],
 	query *Validator[Q],
-) HandlerFunc {
+) Handler {
 	return func(ctx *Context) (any, int, error) {
 		var paramsPtr *P
 		var bodyPtr *B

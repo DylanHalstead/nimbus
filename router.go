@@ -4,9 +4,25 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"unique"
 )
 
-// HandlerFunc defines the handler function signature
+// Pre-interned HTTP method handles for optimal performance
+// These are created once at package initialization and shared across all routers
+// Using unique.Handle as map keys provides O(1) pointer-based hashing instead of O(n) string hashing
+var (
+	methodGET     = unique.Make(http.MethodGet)
+	methodPOST    = unique.Make(http.MethodPost)
+	methodPUT     = unique.Make(http.MethodPut)
+	methodDELETE  = unique.Make(http.MethodDelete)
+	methodPATCH   = unique.Make(http.MethodPatch)
+	methodHEAD    = unique.Make(http.MethodHead)
+	methodOPTIONS = unique.Make(http.MethodOptions)
+	methodTRACE   = unique.Make(http.MethodTrace)
+	methodCONNECT = unique.Make(http.MethodConnect)
+)
+
+// Handler defines the handler function signature
 // Handlers return: (data, statusCode, error)
 // - data: the response body (will be JSON encoded)
 // - statusCode: HTTP status code (0 means use default based on error)
@@ -19,7 +35,7 @@ import (
 //	return ctx.Data(200, "text/plain", []byte("Hello"))
 //
 // These methods return (nil, 0, nil) to signal the response was already written.
-type HandlerFunc func(*Context) (any, int, error)
+type Handler func(*Context) (any, int, error)
 
 // TypedRequest holds typed request parameters, body, and query data.
 // Any unused fields will be nil. This consolidates all typed inputs into a single struct.
@@ -47,18 +63,20 @@ type HandlerFuncTyped[P any, B any, Q any] func(*Context, *TypedRequest[P, B, Q]
 // routingTable is an immutable snapshot of routing configuration.
 // Once created and stored in atomic.Pointer, it should never be modified.
 // This enables lock-free concurrent reads with zero contention.
+// Uses unique.Handle[string] as method keys for O(1) pointer-based hashing (faster than string hashing).
 type routingTable struct {
-	exactRoutes   map[string]map[string]*Route // Method -> Path -> Route (O(1) lookup for static routes)
-	trees         map[string]*tree             // Method -> radix tree (fallback for dynamic routes)
-	middlewares   []MiddlewareFunc             // Middleware stack for the router; reads last-in first-out (LIFO)
-	gen           uint64                       // Generation counter for cache invalidation
-	notFoundRoute *Route                       // Special synthetic route for 404 handler (also in chains map)
-	chains        map[*Route]HandlerFunc       // Pre-built middleware chains (route -> compiled handler)
+	exactRoutes   map[unique.Handle[string]]map[string]*Route // Method interned string -> Path -> Route (O(1) for static routes)
+	trees         map[unique.Handle[string]]*tree             // Method interned string -> radix tree (for dynamic routes)
+	middlewares   []Middleware                            // Middleware stack for the router; reads last-in first-out (LIFO)
+	gen           uint64                                      // Generation counter for cache invalidation
+	notFoundRoute *Route                                      // Special synthetic route for 404 handler (also in chains map)
+	chains        map[*Route]Handler                      // Pre-built middleware chains (route -> compiled handler)
 }
 
 // Router handles HTTP routing with middleware support.
 // Uses atomic.Pointer for lock-free, type-safe reads, achieving ~23x better performance
 // under concurrent load compared to sync.RWMutex.
+// Routes are indexed by unique.Handle[string] method keys for O(1) pointer-based hashing.
 type Router struct {
 	table        atomic.Pointer[routingTable] // Immutable routing table (lock-free, type-safe reads)
 	mu           sync.Mutex                   // Only protects writes (route registration, middleware changes)
@@ -68,14 +86,15 @@ type Router struct {
 // Route represents a single route with its middleware chain.
 // Routes are immutable after creation - all state is read-only.
 type Route struct {
-	handler     HandlerFunc
-	middlewares []MiddlewareFunc
+	handler     Handler
+	middlewares []Middleware
 	metadata    *RouteMetadata
 	method      string
 	pattern     string
 }
 
 // NewRouter creates a new router instance with atomic.Pointer for lock-free, type-safe reads
+// HTTP method handles are pre-interned at package level for optimal performance
 func NewRouter() *Router {
 	r := &Router{}
 	
@@ -93,13 +112,14 @@ func NewRouter() *Router {
 	}
 	
 	// Initialize chains map with 404 handler
-	chains := make(map[*Route]HandlerFunc)
+	chains := make(map[*Route]Handler)
 	chains[notFoundRoute] = defaultNotFound // No middleware initially
 	
 	// Initialize with empty immutable routing table
+	// Method handles (methodGET, methodPOST, etc.) are package-level constants
 	r.table.Store(&routingTable{
-		exactRoutes:   make(map[string]map[string]*Route),
-		trees:         make(map[string]*tree),
+		exactRoutes:   make(map[unique.Handle[string]]map[string]*Route),
+		trees:         make(map[unique.Handle[string]]*tree),
 		middlewares:   nil,
 		gen:           0,
 		notFoundRoute: notFoundRoute,
@@ -113,7 +133,7 @@ func NewRouter() *Router {
 // Pre-builds all middleware chains with the new middleware stack.
 // Note: This rebuilds chains for all routes, so it's best to add all global
 // middleware before registering routes for optimal performance.
-func (r *Router) Use(middleware ...MiddlewareFunc) {
+func (r *Router) Use(middleware ...Middleware) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
@@ -121,7 +141,7 @@ func (r *Router) Use(middleware ...MiddlewareFunc) {
 	old := r.table.Load()
 	
 	// Create new immutable table with updated middlewares
-	newMiddlewares := make([]MiddlewareFunc, len(old.middlewares)+len(middleware))
+	newMiddlewares := make([]Middleware, len(old.middlewares)+len(middleware))
 	copy(newMiddlewares, old.middlewares)
 	copy(newMiddlewares[len(old.middlewares):], middleware)
 	
@@ -149,12 +169,14 @@ func (r *Router) Use(middleware ...MiddlewareFunc) {
 // Example: router.AddRoute(http.MethodGet, "/users", handleUsers)
 //
 //	router.AddRoute(http.MethodPost, "/users", handleCreateUser, authMiddleware)
-func (r *Router) AddRoute(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+func (r *Router) AddRoute(method, path string, handler Handler, middleware ...Middleware) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Load current table (type-safe, no assertion needed)
 	old := r.table.Load()
+
+	methodHandle := unique.Make(method)
 
 	// Create route object
 	route := &Route{
@@ -171,20 +193,20 @@ func (r *Router) AddRoute(method, path string, handler HandlerFunc, middleware .
 	// Check if this is a static route (no dynamic parameters)
 	if isStaticRoute(path) {
 		// Add to exact match map for O(1) lookup
-		if newExactRoutes[method] == nil {
-			newExactRoutes[method] = make(map[string]*Route)
+		if newExactRoutes[methodHandle] == nil {
+			newExactRoutes[methodHandle] = make(map[string]*Route)
 		}
-		newExactRoutes[method][path] = route
+		newExactRoutes[methodHandle][path] = route
 	}
 
 	// Always insert into radix tree as fallback
-	if newTrees[method] == nil {
-		newTrees[method] = newTree()
+	if newTrees[methodHandle] == nil {
+		newTrees[methodHandle] = newTree()
 	}
-	newTrees[method].insert(path, route)
+	newTrees[methodHandle].insert(path, route)
 
 	// Copy chains map and add chain for new route
-	newChains := make(map[*Route]HandlerFunc, len(old.chains)+1)
+	newChains := make(map[*Route]Handler, len(old.chains)+1)
 	for r, chain := range old.chains {
 		newChains[r] = chain
 	}
@@ -216,39 +238,41 @@ func isStaticRoute(path string) bool {
 
 // copyExactRoutes creates a shallow copy of the exactRoutes map for copy-on-write.
 // Routes themselves are shared (they're immutable after registration).
-func copyExactRoutes(old map[string]map[string]*Route) map[string]map[string]*Route {
+// Uses unique.Handle[string] keys for O(1) pointer-based hashing.
+func copyExactRoutes(old map[unique.Handle[string]]map[string]*Route) map[unique.Handle[string]]map[string]*Route {
 	if old == nil {
-		return make(map[string]map[string]*Route)
+		return make(map[unique.Handle[string]]map[string]*Route)
 	}
 	
-	new := make(map[string]map[string]*Route, len(old))
-	for method, routes := range old {
+	new := make(map[unique.Handle[string]]map[string]*Route, len(old))
+	for methodHandle, routes := range old {
 		newRoutes := make(map[string]*Route, len(routes)+1)
 		for path, route := range routes {
 			newRoutes[path] = route
 		}
-		new[method] = newRoutes
+		new[methodHandle] = newRoutes
 	}
 	return new
 }
 
 // copyTrees creates a shallow copy of the trees map for copy-on-write.
 // Trees themselves are shared (routes are immutable after registration).
-func copyTrees(old map[string]*tree) map[string]*tree {
+// Uses unique.Handle[string] keys for O(1) pointer-based hashing.
+func copyTrees(old map[unique.Handle[string]]*tree) map[unique.Handle[string]]*tree {
 	if old == nil {
-		return make(map[string]*tree)
+		return make(map[unique.Handle[string]]*tree)
 	}
 	
-	new := make(map[string]*tree, len(old))
-	for method, tree := range old {
-		new[method] = tree
+	new := make(map[unique.Handle[string]]*tree, len(old))
+	for methodHandle, tree := range old {
+		new[methodHandle] = tree
 	}
 	return new
 }
 
 // buildChain compiles a middleware chain for a single route.
 // Middleware is applied in reverse order: route-specific first, then global.
-func buildChain(route *Route, globalMiddlewares []MiddlewareFunc) HandlerFunc {
+func buildChain(route *Route, globalMiddlewares []Middleware) Handler {
 	handler := route.handler
 	
 	// Apply route-specific middleware in reverse order (last added wraps first)
@@ -266,7 +290,7 @@ func buildChain(route *Route, globalMiddlewares []MiddlewareFunc) HandlerFunc {
 
 // buildNotFoundChain compiles a middleware chain for the notFound handler.
 // Only global middleware is applied (no route-specific middleware).
-func buildNotFoundChain(notFound HandlerFunc, globalMiddlewares []MiddlewareFunc) HandlerFunc {
+func buildNotFoundChain(notFound Handler, globalMiddlewares []Middleware) Handler {
 	handler := notFound
 	
 	// Apply global middleware in reverse order (last added wraps first)
@@ -280,8 +304,8 @@ func buildNotFoundChain(notFound HandlerFunc, globalMiddlewares []MiddlewareFunc
 // buildAllChains pre-compiles middleware chains for all routes in the routing table.
 // This is called when global middleware changes or when the routing table is rebuilt.
 // Returns an immutable map of route -> compiled chain for lock-free lookups.
-func buildAllChains(exactRoutes map[string]map[string]*Route, trees map[string]*tree, globalMiddlewares []MiddlewareFunc) map[*Route]HandlerFunc {
-	chains := make(map[*Route]HandlerFunc)
+func buildAllChains(exactRoutes map[unique.Handle[string]]map[string]*Route, trees map[unique.Handle[string]]*tree, globalMiddlewares []Middleware) map[*Route]Handler {
+	chains := make(map[*Route]Handler)
 	
 	// Build chains for exact routes
 	for _, methodRoutes := range exactRoutes {
@@ -313,8 +337,11 @@ func (r *Router) WithMetadata(method, path string, metadata RouteMetadata) {
 
 	table := r.table.Load()
 
+	// Intern the method for map lookup
+	methodHandle := unique.Make(method)
+
 	// Find the route in the tree and attach metadata
-	if tree, ok := table.trees[method]; ok {
+	if tree, ok := table.trees[methodHandle]; ok {
 		if route, _ := tree.search(path); route != nil {
 			route.metadata = &metadata
 		}
@@ -347,11 +374,11 @@ func (rd *RouteDoc) WithDoc(metadata RouteMetadata) *RouteDoc {
 type Group struct {
 	router      *Router
 	prefix      string
-	middlewares []MiddlewareFunc
+	middlewares []Middleware
 }
 
 // Group creates a new route group
-func (r *Router) Group(prefix string, middleware ...MiddlewareFunc) *Group {
+func (r *Router) Group(prefix string, middleware ...Middleware) *Group {
 	return &Group{
 		router:      r,
 		prefix:      prefix,
@@ -360,13 +387,13 @@ func (r *Router) Group(prefix string, middleware ...MiddlewareFunc) *Group {
 }
 
 // Use adds middleware to the group
-func (g *Group) Use(middleware ...MiddlewareFunc) {
+func (g *Group) Use(middleware ...Middleware) {
 	g.middlewares = append(g.middlewares, middleware...)
 }
 
 // AddRoute registers a route in the group with the given HTTP method, path, handler, and optional middleware
 // The group prefix and group middleware are automatically applied
-func (g *Group) AddRoute(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+func (g *Group) AddRoute(method, path string, handler Handler, middleware ...Middleware) {
 	fullPath := g.prefix + path
 	allMiddleware := append(g.middlewares, middleware...)
 	g.router.AddRoute(method, fullPath, handler, allMiddleware...)
@@ -375,6 +402,7 @@ func (g *Group) AddRoute(method, path string, handler HandlerFunc, middleware ..
 // ServeHTTP implements http.Handler interface.
 // Uses atomic.Pointer for zero-lock, type-safe reads with pre-built middleware chains.
 // Achieves true lock-free performance: ~40ns per request under high concurrency.
+// HTTP methods use unique.Handle as map keys for O(1) pointer-based hashing (faster than string hashing).
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(w, req)
 	defer ctx.Release() // Return context to pool when done
@@ -382,8 +410,14 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Zero-lock read: single atomic load operation (type-safe, no assertion needed)
 	table := r.table.Load()
 
+	// Intern the request method for ultra-fast map lookup
+	// unique.Handle provides O(1) pointer-based hashing instead of O(n) string hashing
+	// This works for ALL methods (standard and custom) - no switch statement needed!
+	methodHandle := unique.Make(req.Method)
+
 	// Fast path: Try exact match first (O(1) for static routes)
-	if exactRoutes := table.exactRoutes[req.Method]; exactRoutes != nil {
+	// Map lookup uses pointer hash (much faster than string hash)
+	if exactRoutes := table.exactRoutes[methodHandle]; exactRoutes != nil {
 		if route, ok := exactRoutes[req.URL.Path]; ok {
 			// Static route - no path params needed (stays nil)
 			// ✅ Lock-free chain lookup - just a map read!
@@ -394,7 +428,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Slow path: Fall back to radix tree for dynamic routes
-	if tree := table.trees[req.Method]; tree != nil {
+	if tree := table.trees[methodHandle]; tree != nil {
 		if route, params := tree.search(req.URL.Path); route != nil {
 			ctx.PathParams = params
 
@@ -411,7 +445,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // executeHandler executes the handler and sends the response based on return values
-func (r *Router) executeHandler(ctx *Context, handler HandlerFunc) {
+func (r *Router) executeHandler(ctx *Context, handler Handler) {
 	data, statusCode, err := handler(ctx)
 
 	// If status is 0, the handler has already written the response (e.g., HTML)
@@ -453,7 +487,7 @@ func (r *Router) executeHandler(ctx *Context, handler HandlerFunc) {
 }
 
 // NotFound sets a custom 404 handler
-func (r *Router) NotFound(handler HandlerFunc) {
+func (r *Router) NotFound(handler Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
@@ -471,7 +505,7 @@ func (r *Router) NotFound(handler HandlerFunc) {
 	newNotFoundChain := buildNotFoundChain(handler, old.middlewares)
 	
 	// Copy chains and update with new notFound chain
-	newChains := make(map[*Route]HandlerFunc, len(old.chains))
+	newChains := make(map[*Route]Handler, len(old.chains))
 	for route, chain := range old.chains {
 		if route != old.notFoundRoute {
 			newChains[route] = chain

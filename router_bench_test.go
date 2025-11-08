@@ -61,7 +61,7 @@ func BenchmarkRouter_WithMiddleware(b *testing.B) {
 	router := NewRouter()
 
 	// Add middleware
-	router.Use(func(next HandlerFunc) HandlerFunc {
+	router.Use(func(next Handler) Handler {
 		return func(ctx *Context) (any, int, error) {
 			ctx.Set("processed", true)
 			return next(ctx)
@@ -87,7 +87,7 @@ func BenchmarkRouter_WithMultipleMiddleware(b *testing.B) {
 
 	// Add multiple middleware
 	for i := 0; i < 5; i++ {
-		router.Use(func(next HandlerFunc) HandlerFunc {
+		router.Use(func(next Handler) Handler {
 			return func(ctx *Context) (any, int, error) {
 				return next(ctx)
 			}

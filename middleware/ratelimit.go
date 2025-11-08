@@ -154,11 +154,11 @@ func ShutdownAllRateLimiters() {
 // Limits requests per IP address.
 // The rate limiter's cleanup goroutine will be automatically stopped when router.Shutdown() is called.
 // This is the recommended way to use rate limiting.
-func RateLimitWithRouter(router interface{ RegisterCleanup(func()) }, requestsPerSecond, burst int) nimbus.MiddlewareFunc {
+func RateLimitWithRouter(router interface{ RegisterCleanup(func()) }, requestsPerSecond, burst int) nimbus.Middleware {
 	limiter := NewRateLimiter(requestsPerSecond, burst)
 	router.RegisterCleanup(limiter.Close)
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			// Use IP address as key
 			key := ctx.Request.RemoteAddr
@@ -177,11 +177,11 @@ func RateLimitWithRouter(router interface{ RegisterCleanup(func()) }, requestsPe
 // DEPRECATED: Use RateLimitWithRouter instead for automatic cleanup.
 // Note: The rate limiter's cleanup goroutine will run until the application exits
 // or ShutdownAllRateLimiters() is called
-func RateLimit(requestsPerSecond, burst int) nimbus.MiddlewareFunc {
+func RateLimit(requestsPerSecond, burst int) nimbus.Middleware {
 	limiter := NewRateLimiter(requestsPerSecond, burst)
 	registerLimiter(limiter)
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			// Use IP address as key
 			key := ctx.Request.RemoteAddr
@@ -200,11 +200,11 @@ func RateLimit(requestsPerSecond, burst int) nimbus.MiddlewareFunc {
 // Useful for API key based rate limiting.
 // The rate limiter's cleanup goroutine will be automatically stopped when router.Shutdown() is called.
 // This is the recommended way to use rate limiting.
-func RateLimitByHeaderWithRouter(router interface{ RegisterCleanup(func()) }, header string, requestsPerSecond, burst int) nimbus.MiddlewareFunc {
+func RateLimitByHeaderWithRouter(router interface{ RegisterCleanup(func()) }, header string, requestsPerSecond, burst int) nimbus.Middleware {
 	limiter := NewRateLimiter(requestsPerSecond, burst)
 	router.RegisterCleanup(limiter.Close)
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			key := ctx.GetHeader(header)
 			if key == "" {
@@ -225,11 +225,11 @@ func RateLimitByHeaderWithRouter(router interface{ RegisterCleanup(func()) }, he
 // DEPRECATED: Use RateLimitByHeaderWithRouter instead for automatic cleanup.
 // Note: The rate limiter's cleanup goroutine will run until the application exits
 // or ShutdownAllRateLimiters() is called
-func RateLimitByHeader(header string, requestsPerSecond, burst int) nimbus.MiddlewareFunc {
+func RateLimitByHeader(header string, requestsPerSecond, burst int) nimbus.Middleware {
 	limiter := NewRateLimiter(requestsPerSecond, burst)
 	registerLimiter(limiter)
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			key := ctx.GetHeader(header)
 			if key == "" {

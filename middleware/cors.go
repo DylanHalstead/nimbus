@@ -45,13 +45,13 @@ func DefaultCORSConfig() CORSConfig {
 
 // CORS returns a CORS middleware with optional custom configuration
 // If no config is provided, uses default configuration
-func CORS(configs ...CORSConfig) nimbus.MiddlewareFunc {
+func CORS(configs ...CORSConfig) nimbus.Middleware {
 	config := DefaultCORSConfig()
 	if len(configs) > 0 {
 		config = configs[0]
 	}
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			origin := ctx.GetHeader("Origin")
 

@@ -330,7 +330,7 @@ func TestRecovery_ChainWithOtherMiddleware(t *testing.T) {
 	// Simulate middleware chain: Recovery -> Custom Middleware -> Handler
 	recoveryMiddleware := Recovery()
 
-	customMiddleware := func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	customMiddleware := func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			ctx.Set("custom", "value")
 			return next(ctx)

@@ -10,8 +10,8 @@ import (
 )
 
 // Recovery is a middleware that recovers from panics
-func Recovery() nimbus.MiddlewareFunc {
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+func Recovery() nimbus.Middleware {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (data any, statusCode int, err error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -32,8 +32,8 @@ func Recovery() nimbus.MiddlewareFunc {
 }
 
 // DetailedRecovery returns a recovery middleware that includes error details in the response
-func DetailedRecovery() nimbus.MiddlewareFunc {
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+func DetailedRecovery() nimbus.Middleware {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (data any, statusCode int, err error) {
 			defer func() {
 				if r := recover(); r != nil {

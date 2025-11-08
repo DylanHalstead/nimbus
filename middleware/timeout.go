@@ -15,8 +15,8 @@ import (
 //	router.Use(middleware.Timeout(5 * time.Second))
 //
 // This is useful for preventing slow handlers from tying up resources.
-func Timeout(timeout time.Duration) nimbus.MiddlewareFunc {
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+func Timeout(timeout time.Duration) nimbus.Middleware {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			// Create timeout context from request's context
 			timeoutCtx, cancel := context.WithTimeout(ctx.Request.Context(), timeout)
@@ -58,13 +58,13 @@ func Timeout(timeout time.Duration) nimbus.MiddlewareFunc {
 // Example:
 //
 //	router.Use(middleware.TimeoutWithSkip(5*time.Second, "/stream", "/events"))
-func TimeoutWithSkip(timeout time.Duration, skipPaths ...string) nimbus.MiddlewareFunc {
+func TimeoutWithSkip(timeout time.Duration, skipPaths ...string) nimbus.Middleware {
 	skipMap := make(map[string]bool, len(skipPaths))
 	for _, path := range skipPaths {
 		skipMap[path] = true
 	}
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			// Skip timeout for certain paths
 			if skipMap[ctx.Request.URL.Path] {

@@ -9,8 +9,8 @@ import (
 
 // Auth middleware validates authentication token
 // This is a simple example - in production, use proper JWT validation
-func Auth(validateToken func(string) (any, error)) nimbus.MiddlewareFunc {
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+func Auth(validateToken func(string) (any, error)) nimbus.Middleware {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			authHeader := ctx.GetHeader("Authorization")
 

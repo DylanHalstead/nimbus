@@ -171,9 +171,12 @@ func (r *Router) generatePathsFromRoutes(spec *OpenAPISpec) {
 	table := r.table.Load()
 
 	// Iterate through all methods and their route trees
-	for method, tree := range table.trees {
+	for methodHandle, tree := range table.trees {
 		// Collect all routes from the tree
 		routes := tree.collectRoutes()
+
+		// Get the string value from the handle for comparison
+		method := methodHandle.Value()
 
 		for _, route := range routes {
 			// Convert path parameters from :param to {param}

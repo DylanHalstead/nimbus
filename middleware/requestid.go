@@ -45,7 +45,7 @@ func DefaultRequestIDConfig() RequestIDConfig {
 // RequestID is a middleware that generates or propagates request IDs
 // It checks for an existing X-Request-ID header and generates one if not present
 // The request ID is stored in the context and added to the response headers
-func RequestID(configs ...RequestIDConfig) nimbus.MiddlewareFunc {
+func RequestID(configs ...RequestIDConfig) nimbus.Middleware {
 	config := DefaultRequestIDConfig()
 	if len(configs) > 0 {
 		config = configs[0]
@@ -62,7 +62,7 @@ func RequestID(configs ...RequestIDConfig) nimbus.MiddlewareFunc {
 		config.ContextKey = RequestIDKey
 	}
 
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			// Check if request ID exists in incoming request
 			requestID := ctx.GetHeader(config.HeaderName)

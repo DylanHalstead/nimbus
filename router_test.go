@@ -58,7 +58,7 @@ func TestRouter_Middleware(t *testing.T) {
 	router := NewRouter()
 
 	called := false
-	middleware := func(next HandlerFunc) HandlerFunc {
+	middleware := func(next Handler) Handler {
 		return func(ctx *Context) (any, int, error) {
 			called = true
 			return next(ctx)

@@ -88,8 +88,8 @@ func VerboseLoggerConfig() LoggerConfig {
 //	    SkipPaths:  []string{"/health"},
 //	    LogIP:      true,
 //	}))
-func Logger(config LoggerConfig) nimbus.MiddlewareFunc {
-	return func(next nimbus.HandlerFunc) nimbus.HandlerFunc {
+func Logger(config LoggerConfig) nimbus.Middleware {
+	return func(next nimbus.Handler) nimbus.Handler {
 		return func(ctx *nimbus.Context) (any, int, error) {
 			start := time.Now()
 			path := ctx.Request.URL.Path
