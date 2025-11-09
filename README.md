@@ -718,17 +718,12 @@ srv.Shutdown(shutdownCtx) // Stop accepting new requests
 
 These are documented design limitations that don't affect typical use cases but could be improved:
 
-1. **OpenAPI Generation Misses Static Routes** ⚠️
-   - Current: Only iterates tree routes, not `exactRoutes` map
-   - Impact: Static routes won't appear in Swagger docs
-   - Fix: Add iteration over `exactRoutes` in `generatePathsFromRoutes()`
-
-2. **Validator Uses Reflection** ⚠️
+1. **Validator Uses Reflection** ⚠️
    - Current: Runtime reflection for validation (~200-500ns per field)
    - Impact: Adds ~2-5µs for 10-field struct
    - Future: Consider code generation for zero-overhead validation
 
-3. **No context.Context Integration** ⚠️
+2. **No context.Context Integration** ⚠️
    - Current: Access via `ctx.Request.Context()`
    - Better: Add `ctx.Context()` helper for middleware-derived contexts
    - Impact: Slightly less ergonomic for timeout middleware
@@ -799,7 +794,6 @@ nimbus/
 ## Roadmap
 
 ### High Priority (Performance & Correctness)
-- [ ] **Fix OpenAPI static routes** - Include `exactRoutes` in spec generation
 - [ ] **Add context.Context helpers** - `ctx.Context()` and `ctx.WithContext()` methods
 - [ ] **Implement wildcard route matching** - Complete `*path` catch-all support in tree search
 
