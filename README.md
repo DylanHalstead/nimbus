@@ -391,6 +391,7 @@ flowchart TB
 ```
 
 **Lock-Free Benefits:**
+
 - No mutex locks during request handling
 - Zero contention between concurrent requests
 - Predictable, consistent latency
