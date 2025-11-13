@@ -95,10 +95,10 @@ type HandlerFuncTyped[P any, B any, Q any] func(*Context, *TypedRequest[P, B, Q]
 type routingTable struct {
 	exactRoutes   map[unique.Handle[string]]map[string]*Route // Method interned string -> Path -> Route (O(1) for static routes)
 	trees         map[unique.Handle[string]]*tree             // Method interned string -> radix tree (for dynamic routes)
-	middlewares   []Middleware                            // Middleware stack for the router; reads last-in first-out (LIFO)
+	middlewares   []Middleware                                // Middleware stack for the router; reads last-in first-out (LIFO)
 	gen           uint64                                      // Generation counter for cache invalidation
 	notFoundRoute *Route                                      // Special synthetic route for 404 handler (also in chains map)
-	chains        map[*Route]Handler                      // Pre-built middleware chains (route -> compiled handler)
+	chains        map[*Route]Handler                          // Pre-built middleware chains (route -> compiled handler)
 }
 
 // Router handles HTTP routing with middleware support.
@@ -125,12 +125,12 @@ type Route struct {
 // HTTP method handles are pre-interned at package level for optimal performance
 func NewRouter() *Router {
 	r := &Router{}
-	
+
 	// Default 404 handler
 	defaultNotFound := func(ctx *Context) (any, int, error) {
 		return nil, http.StatusNotFound, &APIError{Code: "not_found", Message: "route not found"}
 	}
-	
+
 	// Create synthetic route for 404 handler
 	notFoundRoute := &Route{
 		handler:     defaultNotFound,
@@ -138,11 +138,11 @@ func NewRouter() *Router {
 		method:      "",
 		pattern:     "",
 	}
-	
+
 	// Initialize chains map with 404 handler
 	chains := make(map[*Route]Handler)
 	chains[notFoundRoute] = defaultNotFound // No middleware initially
-	
+
 	// Initialize with empty immutable routing table
 	// Method handles (methodGET, methodPOST, etc.) are package-level constants
 	r.table.Store(&routingTable{
@@ -153,7 +153,7 @@ func NewRouter() *Router {
 		notFoundRoute: notFoundRoute,
 		chains:        chains,
 	})
-	
+
 	return r
 }
 
@@ -164,31 +164,31 @@ func NewRouter() *Router {
 func (r *Router) Use(middleware ...Middleware) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	// Load current immutable table (type-safe, no assertion needed)
 	old := r.table.Load()
-	
+
 	// Create new immutable table with updated middlewares
 	newMiddlewares := make([]Middleware, len(old.middlewares)+len(middleware))
 	copy(newMiddlewares, old.middlewares)
 	copy(newMiddlewares[len(old.middlewares):], middleware)
-	
+
 	// Pre-build all chains with the new middleware stack
 	newChains := buildAllChains(old.exactRoutes, old.trees, newMiddlewares)
-	
+
 	// Build and add notFound chain to the chains map
 	notFoundChain := buildNotFoundChain(old.notFoundRoute.handler, newMiddlewares)
 	newChains[old.notFoundRoute] = notFoundChain
-	
+
 	new := &routingTable{
-		exactRoutes:   old.exactRoutes,   // Share (routes are immutable after registration)
-		trees:         old.trees,          // Share (routes are immutable after registration)
+		exactRoutes:   old.exactRoutes, // Share (routes are immutable after registration)
+		trees:         old.trees,       // Share (routes are immutable after registration)
 		middlewares:   newMiddlewares,
-		gen:           old.gen + 1,        // Increment generation
-		notFoundRoute: old.notFoundRoute,  // Share synthetic 404 route
-		chains:        newChains,          // Pre-built chains including 404
+		gen:           old.gen + 1,       // Increment generation
+		notFoundRoute: old.notFoundRoute, // Share synthetic 404 route
+		chains:        newChains,         // Pre-built chains including 404
 	}
-	
+
 	// Atomic swap - readers get new table immediately, no locks needed
 	r.table.Store(new)
 }
@@ -249,9 +249,9 @@ func (r *Router) AddRoute(method, path string, handler Handler, middleware ...Mi
 		exactRoutes:   newExactRoutes,
 		trees:         newTrees,
 		middlewares:   old.middlewares,   // Unchanged
-		gen:           old.gen,            // Unchanged (only Use() increments)
-		notFoundRoute: old.notFoundRoute,  // Unchanged
-		chains:        newChains,          // Updated with new route's chain
+		gen:           old.gen,           // Unchanged (only Use() increments)
+		notFoundRoute: old.notFoundRoute, // Unchanged
+		chains:        newChains,         // Updated with new route's chain
 	}
 
 	r.table.Store(new)
@@ -275,7 +275,7 @@ func copyExactRoutes(old map[unique.Handle[string]]map[string]*Route) map[unique
 	if old == nil {
 		return make(map[unique.Handle[string]]map[string]*Route)
 	}
-	
+
 	new := make(map[unique.Handle[string]]map[string]*Route, len(old))
 	for methodHandle, routes := range old {
 		newRoutes := make(map[string]*Route, len(routes)+1)
@@ -294,7 +294,7 @@ func copyTrees(old map[unique.Handle[string]]*tree) map[unique.Handle[string]]*t
 	if old == nil {
 		return make(map[unique.Handle[string]]*tree)
 	}
-	
+
 	new := make(map[unique.Handle[string]]*tree, len(old))
 	for methodHandle, tree := range old {
 		new[methodHandle] = tree
@@ -306,17 +306,17 @@ func copyTrees(old map[unique.Handle[string]]*tree) map[unique.Handle[string]]*t
 // Middleware is applied in reverse order: route-specific first, then global.
 func buildChain(route *Route, globalMiddlewares []Middleware) Handler {
 	handler := route.handler
-	
+
 	// Apply route-specific middleware in reverse order (last added wraps first)
 	for i := len(route.middlewares) - 1; i >= 0; i-- {
 		handler = route.middlewares[i](handler)
 	}
-	
+
 	// Apply global middleware in reverse order (last added wraps first)
 	for i := len(globalMiddlewares) - 1; i >= 0; i-- {
 		handler = globalMiddlewares[i](handler)
 	}
-	
+
 	return handler
 }
 
@@ -324,12 +324,12 @@ func buildChain(route *Route, globalMiddlewares []Middleware) Handler {
 // Only global middleware is applied (no route-specific middleware).
 func buildNotFoundChain(notFound Handler, globalMiddlewares []Middleware) Handler {
 	handler := notFound
-	
+
 	// Apply global middleware in reverse order (last added wraps first)
 	for i := len(globalMiddlewares) - 1; i >= 0; i-- {
 		handler = globalMiddlewares[i](handler)
 	}
-	
+
 	return handler
 }
 
@@ -338,14 +338,14 @@ func buildNotFoundChain(notFound Handler, globalMiddlewares []Middleware) Handle
 // Returns an immutable map of route -> compiled chain for lock-free lookups.
 func buildAllChains(exactRoutes map[unique.Handle[string]]map[string]*Route, trees map[unique.Handle[string]]*tree, globalMiddlewares []Middleware) map[*Route]Handler {
 	chains := make(map[*Route]Handler)
-	
+
 	// Build chains for exact routes
 	for _, methodRoutes := range exactRoutes {
 		for _, route := range methodRoutes {
 			chains[route] = buildChain(route, globalMiddlewares)
 		}
 	}
-	
+
 	// Build chains for tree routes (dynamic routes)
 	for _, tree := range trees {
 		if tree != nil {
@@ -358,7 +358,7 @@ func buildAllChains(exactRoutes map[unique.Handle[string]]map[string]*Route, tre
 			}
 		}
 	}
-	
+
 	return chains
 }
 
@@ -520,9 +520,9 @@ func (r *Router) executeHandler(ctx *Context, handler Handler) {
 func (r *Router) NotFound(handler Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	old := r.table.Load()
-	
+
 	// Create new synthetic route for custom 404 handler
 	newNotFoundRoute := &Route{
 		handler:     handler,
@@ -530,10 +530,10 @@ func (r *Router) NotFound(handler Handler) {
 		method:      "",
 		pattern:     "",
 	}
-	
+
 	// Build the notFound chain with global middleware
 	newNotFoundChain := buildNotFoundChain(handler, old.middlewares)
-	
+
 	// Copy chains and update with new notFound chain
 	newChains := make(map[*Route]Handler, len(old.chains))
 	for route, chain := range old.chains {
@@ -542,16 +542,16 @@ func (r *Router) NotFound(handler Handler) {
 		}
 	}
 	newChains[newNotFoundRoute] = newNotFoundChain
-	
+
 	new := &routingTable{
 		exactRoutes:   old.exactRoutes,
 		trees:         old.trees,
 		middlewares:   old.middlewares,
 		gen:           old.gen,
-		notFoundRoute: newNotFoundRoute,  // New synthetic route
-		chains:        newChains,          // Updated chains with new 404
+		notFoundRoute: newNotFoundRoute, // New synthetic route
+		chains:        newChains,        // Updated chains with new 404
 	}
-	
+
 	r.table.Store(new)
 }
 

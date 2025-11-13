@@ -343,7 +343,7 @@ func (n *node) clone() *node {
 	if n == nil {
 		return nil
 	}
-	
+
 	// Create new node with copied values
 	newNode := &node{
 		nType:    n.nType,
@@ -352,7 +352,7 @@ func (n *node) clone() *node {
 		paramKey: n.paramKey,
 		route:    n.route, // Routes are shared (immutable)
 	}
-	
+
 	// Deep copy children slice
 	if len(n.children) > 0 {
 		newNode.children = make([]*node, len(n.children))
@@ -362,12 +362,12 @@ func (n *node) clone() *node {
 	} else {
 		newNode.children = make([]*node, 0)
 	}
-	
+
 	// Deep copy param child
 	if n.paramChild != nil {
 		newNode.paramChild = n.paramChild.clone()
 	}
-	
+
 	return newNode
 }
 
@@ -405,8 +405,8 @@ func (n *node) insertWithCopy(path string, route *Route) *node {
 	// Handle root path
 	if path == "/" {
 		newNode.route = route
-		newNode.children = n.children       // Share children (unchanged)
-		newNode.paramChild = n.paramChild   // Share param child (unchanged)
+		newNode.children = n.children     // Share children (unchanged)
+		newNode.paramChild = n.paramChild // Share param child (unchanged)
 		return newNode
 	}
 
@@ -467,7 +467,7 @@ func (n *node) insertWithCopy(path string, route *Route) *node {
 					label:      n.paramChild.label,
 					prefix:     n.paramChild.prefix,
 					paramKey:   n.paramChild.paramKey,
-					route:      route, // Updated route
+					route:      route,                   // Updated route
 					children:   n.paramChild.children,   // Share children
 					paramChild: n.paramChild.paramChild, // Share param child
 				}
@@ -516,7 +516,7 @@ func (n *node) insertWithCopy(path string, route *Route) *node {
 						label:      matchedChild.label,
 						prefix:     matchedChild.prefix,
 						paramKey:   matchedChild.paramKey,
-						route:      route, // Updated route
+						route:      route,                   // Updated route
 						children:   matchedChild.children,   // Share children
 						paramChild: matchedChild.paramChild, // Share param child
 					}

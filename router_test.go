@@ -133,14 +133,14 @@ func TestRouter_WithPathParams(t *testing.T) {
 // Run with: go test -race -run TestConcurrentAddAndServe
 func TestConcurrentAddAndServe(t *testing.T) {
 	router := NewRouter()
-	
+
 	// Add initial route
 	router.AddRoute(http.MethodGet, "/initial", func(ctx *Context) (any, int, error) {
 		return "initial", 200, nil
 	})
-	
+
 	var wg sync.WaitGroup
-	
+
 	// Concurrent route registration (writers)
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -153,7 +153,7 @@ func TestConcurrentAddAndServe(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	// Concurrent request handling (readers)
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
@@ -166,7 +166,7 @@ func TestConcurrentAddAndServe(t *testing.T) {
 			}
 		}()
 	}
-	
+
 	wg.Wait()
 }
 
@@ -174,9 +174,9 @@ func TestConcurrentAddAndServe(t *testing.T) {
 // that was fixed by path copying optimization. Run with: go test -race -run TestConcurrentTreeMutation
 func TestConcurrentTreeMutation(t *testing.T) {
 	router := NewRouter()
-	
+
 	var wg sync.WaitGroup
-	
+
 	// Multiple goroutines adding routes to the same method (shares same tree)
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -190,7 +190,7 @@ func TestConcurrentTreeMutation(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	// Concurrent readers hitting the same tree
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -203,6 +203,6 @@ func TestConcurrentTreeMutation(t *testing.T) {
 			}
 		}()
 	}
-	
+
 	wg.Wait()
 }

@@ -188,11 +188,11 @@ func (r *Router) generatePathsFromRoutes(spec *OpenAPISpec) {
 	for methodHandle, tree := range table.trees {
 		method := methodHandle.Value()
 		routes := tree.collectRoutes()
-		
+
 		if allRoutes[method] == nil {
 			allRoutes[method] = make(map[string]*Route)
 		}
-		
+
 		for _, route := range routes {
 			// Only add if not already present (exactRoutes takes precedence to avoid duplicates)
 			if _, exists := allRoutes[method][route.pattern]; !exists {

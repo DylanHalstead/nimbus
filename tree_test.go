@@ -316,7 +316,7 @@ func BenchmarkTree_Search_ManyRoutes(b *testing.B) {
 // BenchmarkTree_Clone benchmarks full tree cloning (used for baseline comparison)
 func BenchmarkTree_Clone(b *testing.B) {
 	tree := newTree()
-	
+
 	// Build a realistic tree with 100 routes
 	for i := 0; i < 100; i++ {
 		path := fmt.Sprintf("/api/v1/resource%d/:id/action/:action", i)
@@ -327,10 +327,10 @@ func BenchmarkTree_Clone(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.clone() // Full deep copy
 	}
@@ -339,7 +339,7 @@ func BenchmarkTree_Clone(b *testing.B) {
 // BenchmarkTree_InsertWithCopy benchmarks path copying optimization
 func BenchmarkTree_InsertWithCopy(b *testing.B) {
 	tree := newTree()
-	
+
 	// Build a realistic tree with 100 routes
 	for i := 0; i < 100; i++ {
 		path := fmt.Sprintf("/api/v1/resource%d/:id/action/:action", i)
@@ -350,17 +350,17 @@ func BenchmarkTree_InsertWithCopy(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	// New route to insert
 	newRoute := &Route{
 		handler: func(ctx *Context) (any, int, error) { return nil, 200, nil },
 		method:  "POST",
 		pattern: "/api/v1/newresource/:id/action/:action",
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.insertWithCopy("/api/v1/newresource/:id/action/:action", newRoute)
 	}
@@ -369,7 +369,7 @@ func BenchmarkTree_InsertWithCopy(b *testing.B) {
 // BenchmarkTree_Clone_SmallTree benchmarks cloning with 10 routes
 func BenchmarkTree_Clone_SmallTree(b *testing.B) {
 	tree := newTree()
-	
+
 	for i := 0; i < 10; i++ {
 		path := fmt.Sprintf("/api/resource%d/:id", i)
 		route := &Route{
@@ -379,10 +379,10 @@ func BenchmarkTree_Clone_SmallTree(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.clone()
 	}
@@ -391,7 +391,7 @@ func BenchmarkTree_Clone_SmallTree(b *testing.B) {
 // BenchmarkTree_InsertWithCopy_SmallTree benchmarks path copy with 10 routes
 func BenchmarkTree_InsertWithCopy_SmallTree(b *testing.B) {
 	tree := newTree()
-	
+
 	for i := 0; i < 10; i++ {
 		path := fmt.Sprintf("/api/resource%d/:id", i)
 		route := &Route{
@@ -401,16 +401,16 @@ func BenchmarkTree_InsertWithCopy_SmallTree(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	newRoute := &Route{
 		handler: func(ctx *Context) (any, int, error) { return nil, 200, nil },
 		method:  "POST",
 		pattern: "/api/newresource/:id",
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.insertWithCopy("/api/newresource/:id", newRoute)
 	}
@@ -419,7 +419,7 @@ func BenchmarkTree_InsertWithCopy_SmallTree(b *testing.B) {
 // BenchmarkTree_Clone_LargeTree benchmarks cloning with 500 routes
 func BenchmarkTree_Clone_LargeTree(b *testing.B) {
 	tree := newTree()
-	
+
 	for i := 0; i < 500; i++ {
 		path := fmt.Sprintf("/api/v1/resource%d/:id/action/:action/detail/:detail", i)
 		route := &Route{
@@ -429,10 +429,10 @@ func BenchmarkTree_Clone_LargeTree(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.clone()
 	}
@@ -441,7 +441,7 @@ func BenchmarkTree_Clone_LargeTree(b *testing.B) {
 // BenchmarkTree_InsertWithCopy_LargeTree benchmarks path copy with 500 routes
 func BenchmarkTree_InsertWithCopy_LargeTree(b *testing.B) {
 	tree := newTree()
-	
+
 	for i := 0; i < 500; i++ {
 		path := fmt.Sprintf("/api/v1/resource%d/:id/action/:action/detail/:detail", i)
 		route := &Route{
@@ -451,16 +451,16 @@ func BenchmarkTree_InsertWithCopy_LargeTree(b *testing.B) {
 		}
 		tree.insert(path, route)
 	}
-	
+
 	newRoute := &Route{
 		handler: func(ctx *Context) (any, int, error) { return nil, 200, nil },
 		method:  "POST",
 		pattern: "/api/v1/newresource/:id/action/:action/detail/:detail",
 	}
-	
+
 	b.ResetTimer()
 	b.ReportAllocs()
-	
+
 	for i := 0; i < b.N; i++ {
 		_ = tree.insertWithCopy("/api/v1/newresource/:id/action/:action/detail/:detail", newRoute)
 	}

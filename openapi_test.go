@@ -340,9 +340,9 @@ func TestStaticAndDynamicRoutes(t *testing.T) {
 
 	// Verify all routes are present
 	expectedPaths := map[string]bool{
-		"/health":                         false,
-		"/api/status":                     false,
-		"/users/{id}":                     false,
+		"/health":                              false,
+		"/api/status":                          false,
+		"/users/{id}":                          false,
 		"/posts/{postId}/comments/{commentId}": false,
 	}
 
